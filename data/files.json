@@ -1,0 +1,27 @@
+{
+  "name": "data",
+  "type": "folder",
+  "children": [
+    {
+      "name": "docs",
+      "type": "folder",
+      "children": [
+        { "name": "readme.pdf", "type": "file", "path": "data/docs/readme.pdf" }
+      ]
+    },
+    {
+      "name": "images",
+      "type": "folder",
+      "children": [
+        { "name": "demo.png", "type": "file", "path": "data/images/demo.png" }
+      ]
+    },
+    {
+      "name": "noanythings",
+      "type": "folder",
+      "children": [
+        { "name": "imwatchyou.png", "type": "file", "path": "data/noanythings/imwatchyou.png" }
+      ]
+    }
+  ]
+}

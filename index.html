@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>文件管理器</title>
+    <style>
+        :root {
+            --bg: #000;
+            --fg: #00ff00;
+            --dim: #00aa00;
+            --border: #00ff00;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: var(--bg);
+            color: var(--fg);
+            font-family: "Courier New", Courier, monospace;
+            min-height: 100vh;
+        }
+        .login-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 24px;
+        }
+        .login-box {
+            border: 2px solid var(--border);
+            padding: 24px 20px;
+            width: 340px;
+            max-width: 100%;
+        }
+        .login-box h2 {
+            margin-bottom: 16px;
+            font-size: 18px;
+            letter-spacing: 2px;
+        }
+        .login-box input {
+            width: 100%;
+            padding: 8px 10px;
+            margin-bottom: 12px;
+            background: #001100;
+            color: var(--fg);
+            border: 1px solid var(--dim);
+            font-family: inherit;
+            font-size: 14px;
+            outline: none;
+        }
+        .login-box input::placeholder { color: var(--dim); }
+        .login-box button {
+            width: 100%;
+            padding: 8px;
+            background: #001a00;
+            color: var(--fg);
+            border: 1px solid var(--fg);
+            font-family: inherit;
+            font-size: 14px;
+            cursor: pointer;
+        }
+        .login-box button:hover { background: #002200; }
+        .login-error {
+            color: #ff4444;
+            font-size: 13px;
+            margin-bottom: 12px;
+            display: none;
+        }
+        .file-manager { display: none; padding: 16px 20px; }
+        .top-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+            border-bottom: 1px solid var(--dim);
+            padding-bottom: 8px;
+        }
+        .top-bar h1 { font-size: 16px; letter-spacing: 2px; }
+        .top-bar button {
+            background: #001a00;
+            color: var(--fg);
+            border: 1px solid var(--fg);
+            padding: 4px 12px;
+            font-family: inherit;
+            cursor: pointer;
+        }
+        .breadcrumb { margin-bottom: 12px; font-size: 14px; }
+        .breadcrumb a {
+            color: var(--fg);
+            text-decoration: none;
+            cursor: pointer;
+        }
+        .breadcrumb a:hover { text-decoration: underline; }
+        .breadcrumb span { color: var(--dim); margin: 0 6px; }
+        .file-list { width: 100%; border-collapse: collapse; }
+        .file-list th {
+            text-align: left;
+            padding: 8px 10px;
+            border-bottom: 1px solid var(--dim);
+            font-size: 13px;
+            color: var(--dim);
+        }
+        .file-list td {
+            padding: 8px 10px;
+            border-bottom: 1px solid #002200;
+            font-size: 14px;
+        }
+        .file-list a {
+            color: var(--fg);
+            text-decoration: none;
+            cursor: pointer;
+        }
+        .file-list a:hover { text-decoration: underline; }
+        .icon { margin-right: 8px; }
+        .empty { text-align: center; padding: 40px; color: var(--dim); }
+    </style>
+</head>
+<body>
+
+<div class="login-container" id="loginPage">
+    <div class="login-box">
+        <h2>[ FILE MANAGER ]</h2>
+        <div class="login-error" id="loginError">用户名或密码错误</div>
+        <input type="text" id="username" placeholder="USERNAME" />
+        <input type="password" id="password" placeholder="PASSWORD" />
+        <button onclick="doLogin()">LOGIN</button>
+    </div>
+</div>
+
+<div class="file-manager" id="filePage">
+    <div class="top-bar">
+        <h1>DATA://</h1>
+        <button onclick="doLogout()">LOGOUT</button>
+    </div>
+    <div class="breadcrumb" id="breadcrumb"></div>
+    <table class="file-list">
+        <thead>
+        <tr>
+            <th>NAME</th>
+            <th>ACTION</th>
+        </tr>
+        </thead>
+        <tbody id="fileList"></tbody>
+    </table>
+</div>
+
+<script>
+    const USERS_JSON = "./user.json";
+    const FILES_JSON = "./data/files.json";
+
+    let fileTree = null;
+
+    window.onload = function () {
+        if (sessionStorage.getItem("logged_in") === "1") {
+            showFileManager();
+            loadFiles();
+        }
+    };
+
+    async function doLogin() {
+        const u = document.getElementById("username").value.trim();
+        const p = document.getElementById("password").value.trim();
+        const err = document.getElementById("loginError");
+        err.style.display = "none";
+
+        if (!u || !p) {
+            err.textContent = "请输入用户名和密码";
+            err.style.display = "block";
+            return;
+        }
+
+        try {
+            const res = await fetch(USERS_JSON);
+            if (!res.ok) throw new Error("加载失败");
+            const users = await res.json();
+
+            const match = Array.isArray(users) &&
+                users.find(item => item.username === u && item.password === p);
+
+            if (match) {
+                sessionStorage.setItem("logged_in", "1");
+                showFileManager();
+                await loadFiles();
+            } else {
+                err.textContent = "用户名或密码错误";
+                err.style.display = "block";
+            }
+        } catch (e) {
+            err.textContent = "无法加载 user.json";
+            err.style.display = "block";
+        }
+    }
+
+    function doLogout() {
+        sessionStorage.removeItem("logged_in");
+        location.reload();
+    }
+
+    function showFileManager() {
+        document.getElementById("loginPage").style.display = "none";
+        document.getElementById("filePage").style.display = "block";
+    }
+
+    async function loadFiles() {
+        try {
+            const res = await fetch(FILES_JSON);
+            if (!res.ok) throw new Error("加载失败");
+            fileTree = await res.json();
+            navigate(fileTree, []);
+        } catch (e) {
+            alert("无法加载 data/files.json，请确认文件存在且格式正确。");
+        }
+    }
+
+    function navigate(node, path) {
+        if (!node || node.type !== "folder") return;
+        renderBreadcrumb(path);
+        renderList(node.children || [], path);
+    }
+
+    function renderBreadcrumb(path) {
+        const el = document.getElementById("breadcrumb");
+        let html = '<a href=" " class="bc-link" data-path="">data</a >';
+        let acc = [];
+        path.forEach(name => {
+            acc.push(name);
+            html += ' <span>/</span> <a href="#" class="bc-link" data-path="' + acc.join("/") + '">' + name + '</a >';
+        });
+        el.innerHTML = html;
+    }
+
+    document.getElementById("breadcrumb").addEventListener("click", function (e) {
+        const a = e.target.closest(".bc-link");
+        if (!a) return;
+        e.preventDefault();
+        const p = a.dataset.path;
+        goPath(p ? p.split("/") : []);
+    });
+
+    function renderList(items, path) {
+        const tbody = document.getElementById("fileList");
+
+        if (!items || items.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="2" class="empty">EMPTY DIRECTORY</td></tr>';
+            return;
+        }
+
+        const dirs = items.filter(i => i.type === "folder");
+        const files = items.filter(i => i.type === "file");
+        const sorted = [...dirs, ...files];
+
+        tbody.innerHTML = sorted.map(item => {
+            if (item.type === "folder") {
+                const nextPath = [...path, item.name].join("/");
+                return `<tr>
+        <td><a href="#" class="folder-link" data-path="${nextPath}"><span class="icon">[DIR]</span>${item.name}</a ></td>
+        <td>OPEN</td>
+      </tr>`;
+            }
+            const href = item.path || "";
+            return `<tr>
+      <td><span class="icon">[FILE]</span>${item.name}</td>
+      <td>${href ? '<a href="' + href + '" target="_blank">VIEW / DOWNLOAD</a >' : "NO PATH"}</td>
+    </tr>`;
+        }).join("");
+    }
+
+    document.getElementById("fileList").addEventListener("click", function (e) {
+        const a = e.target.closest(".folder-link");
+        if (!a) return;
+        e.preventDefault();
+        const p = a.dataset.path;
+        goPath(p ? p.split("/") : []);
+    });
+
+    function goRoot() {
+        if (!fileTree) return;
+        navigate(fileTree, []);
+    }
+
+    function goPath(path) {
+        let node = fileTree;
+        for (const name of path) {
+            const child = (node.children || []).find(c => c.name === name);
+            if (!child || child.type !== "folder") return;
+            node = child;
+        }
+        navigate(node, path);
+    }
+</script>
+</body>
+</html>
